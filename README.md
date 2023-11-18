@@ -7,7 +7,7 @@ Simple [bloom.cpp](https://github.com/NouamaneTazi/bloomz.cpp) instance compilin
 https://huggingface.co/models?other=bloom&other=ggml)
 $ scons
 (should produce:)
-$ /usr/bin/g++ -o build/main.o -c -std=c++11 -I/home/xyz/Desktop/scons-ggml-bloom/libs/ggml -I/home/xyz/Desktop/scons-ggml-bloom/build -g -Wall -Wformat -I. src/main.cpp
+$ /usr/bin/g++ -o build/main.o -c -std=c++11 -I/home/xyz/Desktop/scons-ggml-bloom/libs/ggml -I/home/xyz/Desktop/scons-ggml-bloom/build -g -Wall -Wformat src/main.cpp
 (should test executable:)
 $ ./dist/scons-ggml-bloom -m ./models/ggml-model-bloomz-3b-f16-q4_0.bin -p 'Translate "Give me a piece of bread and potatoes" to Portuguese:' -t 8 -n 256
 (output)
@@ -40,6 +40,7 @@ options:
 
 References:
 
-https://github.com/NouamaneTazi/bloomz.cpp
-https://github.com/ggerganov/ggml
-https://scons.org/
+https://github.com/NouamaneTazi/bloomz.cpp  
+https://github.com/ggerganov/ggml  
+https://scons.org/  
+ 
