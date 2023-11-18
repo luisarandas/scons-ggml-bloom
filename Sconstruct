@@ -1,0 +1,161 @@
+
+
+# luis arandas 18-11-2023
+# compiling bloom using scons
+
+# ----------------------------------
+# 1. Setup variables
+# ----------------------------------
+
+import os
+import subprocess
+import platform
+import shutil
+
+system_name = platform.system()
+system_architecture = platform.machine()
+
+# Get compiler path and decode it as string
+
+if system_name == 'Windows':
+    result = subprocess.run(['where', 'g++.exe'], stdout=subprocess.PIPE)
+    compiler_path = result.stdout.strip().decode()
+else:
+    result = subprocess.run(['which', 'g++'], stdout=subprocess.PIPE)
+    compiler_path = result.stdout.strip().decode()
+
+print("Compiler is at -> ", compiler_path)
+print("System architecture -> ", system_architecture)
+
+env = Environment()
+cxx = result.stdout.strip().decode() # 'g++', 'clang++'
+
+executable = 'scons-ggml-bloom'
+
+# ----------------------------------
+# 2. Scan and clean the environment 
+# ----------------------------------
+
+current_folder = os.getcwd()
+src_folder = os.path.join(current_folder, 'src')
+build_folder = os.path.join(current_folder, 'build')
+dist_folder = os.path.join(current_folder, 'dist')
+
+libs_folder = os.path.join(current_folder, 'libs')
+ggml_folder = os.path.join(libs_folder, 'ggml')
+
+
+cpp_sources = [
+    os.path.join(src_folder, 'main.cpp'),
+    os.path.join(src_folder, 'utils.cpp'),
+    os.path.join(ggml_folder, 'ggml.c')
+]
+
+# Erase previous build
+
+if os.path.exists(dist_folder):
+    os.system('rm -rf ' + dist_folder)
+
+if os.path.exists(build_folder):
+    os.system('rm -rf ' + build_folder)
+
+for folder in [build_folder, dist_folder]:
+    if not os.path.exists(folder):
+        os.makedirs(folder)
+
+
+# ----------------------------------
+# 3. Helper functions
+# ----------------------------------
+
+
+def post_build_action(target, source, env):
+
+    # def generate_simple_distribution():
+    # def generate_documentation():
+
+    try:
+        shutil.move(executable, dist_folder)
+        print(f"File '{executable}' moved to '{dist_folder}' successfully.")
+    except FileNotFoundError:
+        print(f"File '{executable}' not found.")
+    except PermissionError:
+        print(f"Permission denied. Failed to move file '{executable}'.")
+
+
+def get_shell_output(command):
+    process = subprocess.Popen(command, stdout=subprocess.PIPE, shell=True)
+    return process.communicate()[0].decode('utf-8').strip()
+
+
+# ----------------------------------
+# 4. Compiler and linker flags
+# ----------------------------------
+
+# Common
+
+# env.Append(CPPPATH = ['.'])
+env.Append(CFLAGS = ['-O3', '-DNDEBUG', '-std=c11', '-fPIC'])
+env.Append(CXXFLAGS = ['-O3', '-DNDEBUG', '-std=c++11', '-fPIC'])
+
+
+# OS-specific
+
+if system_name in ['Linux', 'Darwin', 'FreeBSD', 'NetBSD']:
+    env.Append(CFLAGS = ['-pthread'])
+    env.Append(CXXFLAGS = ['-pthread'])
+if system_name == 'Windows':
+    env.Append(LINKFLAGS = ['-static'])
+
+# Architecture-specific
+
+if system_architecture in ['x86_64', 'i686']:
+    if system_name == 'Darwin':
+        env.Append(CFLAGS = ['-mf16c'])
+        # Check for AVX, FMA, AVX2 features
+        cpu_features = get_shell_output('sysctl machdep.cpu.features')
+        if 'FMA' in cpu_features:
+            env.Append(CFLAGS = ['-mfma'])
+        if 'AVX1.0' in cpu_features:
+            env.Append(CFLAGS = ['-mavx'])
+        cpu_leaf_features = get_shell_output('sysctl machdep.cpu.leaf7_features')
+        if 'AVX2' in cpu_leaf_features:
+            env.Append(CFLAGS = ['-mavx2'])
+    elif system_name in ['Linux', 'MINGW32', 'MINGW64']:
+        # Check for AVX, AVX2, FMA, F16C, SSE3 features
+        if 'avx' in get_shell_output('grep "avx " /proc/cpuinfo'):
+            env.Append(CFLAGS = ['-mavx'])
+        if 'avx2' in get_shell_output('grep "avx2 " /proc/cpuinfo'):
+            env.Append(CFLAGS = ['-mavx2'])
+        if 'fma' in get_shell_output('grep "fma " /proc/cpuinfo'):
+            env.Append(CFLAGS = ['-mfma'])
+        if 'f16c' in get_shell_output('grep "f16c " /proc/cpuinfo'):
+            env.Append(CFLAGS = ['-mf16c'])
+        if 'sse3' in get_shell_output('grep "sse3 " /proc/cpuinfo'):
+            env.Append(CFLAGS = ['-msse3'])
+
+
+# ----------------------------------
+# 5. Generate objects and compile
+# ----------------------------------
+
+
+object_sources = []
+
+for cpp_source in cpp_sources:
+    object_file = os.path.join(build_folder, os.path.splitext(os.path.basename(cpp_source))[0] + '.o')
+    object_sources.append(object_file)
+    env.Object(
+        target = object_file,
+        source = cpp_source,
+        CXX = cxx,
+        CXXFLAGS = ['-std=c++11', '-I' + ggml_folder, '-I' + build_folder, '-g', '-Wall', '-Wformat']
+    )
+
+
+main_app = env.Program(target=executable, source=object_sources)
+env.AddPostAction(main_app, post_build_action)
+
+# Future work: also compile quantisation
+
+
